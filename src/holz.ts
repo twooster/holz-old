@@ -15,6 +15,34 @@ interface LoggerOptionsWithLevels extends LoggerOptions {
   levels: readonly string[]
 }
 
+interface BaseLoggerOptions extends LoggerOptionsWithLevels {
+  cls: typeof BaseLogger
+}
+
+interface BoxedMsg {
+  [LogLevel]: number
+  [k: string]: any
+}
+
+type LogMethods<Levels extends string> = {
+  [l in Levels]: (
+    ((obj: {}, msg?: string, ...fmtArgs: any[]) => void) &
+    ((msg: string, ...fmtArgs: any[]) => void)
+  )
+}
+
+export type Logger<L extends string> =
+  TypedLogger<L> &
+  LogMethods<L>
+
+interface TypedLogger<L extends string> extends BaseLogger {
+  minLevel: number | undefined
+  levels: readonly L[]
+  parent: Logger<L>
+  subLogger(name: string): Logger<L>
+  withContext(ctx: ({} | (() => {}))): Logger<L>
+}
+
 export class BaseLogger {
   subLoggers: Map<string, BaseLogger> | undefined
   minLevel: number | undefined
@@ -22,8 +50,10 @@ export class BaseLogger {
   outputs: undefined | OutputFn[] = []
   transforms: undefined | TransformFn[] = []
   parent: undefined | BaseLogger
+  cls: any
 
-  constructor(opts: LoggerOptionsWithLevels) {
+  constructor(opts: BaseLoggerOptions) {
+    this.cls = opts.cls
     this.levels = opts.levels
 
     if (typeof opts.minLevel === 'string') {
@@ -35,6 +65,7 @@ export class BaseLogger {
     } else {
       this.minLevel = opts.minLevel
     }
+
     this.transforms = opts.transforms
     this.outputs = opts.outputs
     this.parent = opts.parent
@@ -57,8 +88,8 @@ export class BaseLogger {
   }
 
   log(sevNum: number, msg: string, ...fmt: any[]): void
-  log(sevNum: number, msg: {}): void
-  log(sevNum: number, ...args: [string | {}, ...any[]]): void {
+  log(sevNum: number, obj: {}, msg?: string, ...fmt: any[]): void
+  log(sevNum: number, objOrMsg: string | {}, ...rest: any[]): void {
     if (this.levels[sevNum] === undefined) {
       throw new Error('Unknown log level: ' + sevNum)
     }
@@ -67,51 +98,61 @@ export class BaseLogger {
       return
     }
 
-    let msg = args[0]
-    let fmtMsg: { [LogLevel]: number, [k: string]: any }
-    if (typeof msg === 'string') {
-      if (args.length > 1) {
-        msg = args
+    const boxedMsg: BoxedMsg = {
+      [LogLevel]: sevNum,
+      level: this.levels[sevNum],
+    }
+    if (typeof objOrMsg === 'object') {
+      Object.assign(boxedMsg, objOrMsg)
+      if (rest.length > 0) {
+        if (rest.length === 1) {
+          boxedMsg.msg = rest[0]
+        } else {
+          boxedMsg.msg = rest
+        }
       }
-      fmtMsg = {
-        [LogLevel]: sevNum,
-        level: this.levels[sevNum],
-        msg
-      }
-    } else {
-      fmtMsg = {
-        [LogLevel]: sevNum,
-        level: this.levels[sevNum],
-        ...msg
+    } else { /* string */
+      if (rest.length > 0) {
+        boxedMsg.msg = [objOrMsg, ...rest]
+      } else {
+        boxedMsg.msg = objOrMsg
       }
     }
 
-    return this._log(fmtMsg)
+    this._log(boxedMsg)
   }
 
-  _log(msg: { [LogLevel]: number }) {
+  protected _log(msg: BoxedMsg): void {
     if (this.minLevel !== undefined && msg[LogLevel] > this.minLevel) {
       return
     }
 
     if (this.transforms) {
       for (const transform of this.transforms) {
-        const result = transform(msg)
-        if (result === false) {
-          return
-        } else if (result !== undefined) {
-          if (typeof (result as any)[LogLevel] === 'number') {
-            msg = result as any
-          } else {
-            msg = { ...result, [LogLevel]: msg[LogLevel] }
+        try {
+          const result = transform(msg)
+          if (result === false) {
+            return
+          } else if (result !== undefined) {
+            if (typeof (result as any)[LogLevel] === 'number') {
+              msg = result as any
+            } else {
+              msg = { ...result, [LogLevel]: msg[LogLevel] }
+            }
           }
+        } catch(e) {
+          /* noop */
         }
       }
     }
 
     if (this.outputs) {
       for (const output of this.outputs) {
-        output(msg)
+        try {
+          output(msg)
+        } catch(e) {
+          /* noop */
+        }
       }
     }
 
@@ -119,68 +160,60 @@ export class BaseLogger {
       this.parent._log(msg)
     }
   }
-}
 
-type LogMethods<Levels extends string> = {
-  [l in Levels]: (
-    ((msg: {}) => void) &
-    ((msg: string, ...fmt: any[]) => void)
-  )
-}
-
-export type FullLogger<L extends string> =
-  BaseLogger &
-  LogMethods<L> &
-  {
-    subLogger(name: string, opts?: LoggerOptions): FullLogger<L>
-    withContext(ctx: ({} | (() => {}))): FullLogger<L>
-  }
-
-export function makeLoggerClass<L extends string>(levels: { [k: number]: L } & readonly string[]):
-  { new(opts?: LoggerOptions & { minLevel?: number | L }): FullLogger<L> }
-{
-  const loggerClass: any = class Logger extends BaseLogger {
-    constructor(loggerOptions?: LoggerOptions & { minLevel?: number | L }) {
-      super({ ...loggerOptions, levels })
-    }
-  }
-
-  loggerClass.prototype.subLogger = function subLogger(name: string): FullLogger<L> {
+  subLogger(name?: string): BaseLogger {
     let subLogger
-    if (!this.subLoggers) {
-      this.subLoggers = new Map()
-    } else {
-      subLogger = this.subLoggers.get(name)
+    if (name) {
+      if (!this.subLoggers) {
+        this.subLoggers = new Map()
+      } else {
+        subLogger = this.subLoggers.get(name)
+      }
     }
     if (!subLogger) {
-      subLogger = new loggerClass({
-        parent: this,
+      subLogger = new this.cls({
+        cls: this.cls,
         levels: this.levels,
+        parent: this,
       })
-      this.subLoggers.set(name, subLogger)
+      if (name) {
+        this.subLoggers!.set(name, subLogger)
+      }
     }
     return subLogger
   }
 
-  loggerClass.prototype.withContext = function withContext(ctx: ({} | (() => {}))): FullLogger<L> {
-    return new loggerClass({
+  withContext(ctx: ({} | (() => {}))): BaseLogger {
+    return new this.cls({
+      cls: this.cls,
+      levels: this.levels,
       parent: this,
-      transforms: [addContext(ctx)]
+      transforms: [addContext(ctx)],
     })
+  }
+}
+
+export function makeLoggerClass<L extends string>(levels: { [k: number]: L } & readonly string[]):
+  { new(opts?: LoggerOptions & { minLevel?: number | L }): Logger<L> }
+{
+  const loggerClass: any = class CustomLogger extends BaseLogger {
+    constructor(loggerOptions?: LoggerOptions & { minLevel?: number | L }) {
+      super({ ...loggerOptions, levels, cls: loggerClass })
+    }
   }
 
   for (let i = 0; i < levels.length; ++i) {
     loggerClass.prototype[levels[i]] = function (...args: any[]): void {
-      return this.log(i, ...args)
+      this.log(i, ...args)
     }
   }
 
   return loggerClass
 }
 
-export function makeRootLogger<L extends string>(
+export function makeLogger<L extends string>(
   opts: LoggerOptionsWithLevels & { levels: { [k: number]: L } & readonly string[], minLevel?: number | L }
-): FullLogger<L> {
+): Logger<L> {
   const cls = makeLoggerClass(opts.levels)
   return new cls(opts)
 }

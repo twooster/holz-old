@@ -40,7 +40,7 @@ export const tag: TransformFn = function tag(tag: string): TransformFn {
       } else if (!Array.isArray(msg.tags)) {
         return
       }
-      msg.tags.push(tag)
+      msg.tags.unshift(tag)
     }
   }
 }

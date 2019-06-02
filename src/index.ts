@@ -1,4 +1,4 @@
 export { addContext, splat } from './transforms'
 export { logger } from './global'
-export { makeLoggerClass, makeRootLogger, LoggerOptions, FullLogger as Logger } from './holz'
-export { npmLevels, syslogLevels } from './levels'
+export { makeLoggerClass, makeLogger, LoggerOptions, Logger } from './holz'
+export { npmLevels, syslogLevels, consoleLevels } from './levels'

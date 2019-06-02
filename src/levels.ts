@@ -18,3 +18,11 @@ export const syslogLevels = [
   'info',
   'debug'
 ] as const
+
+export const consoleLevels = [
+  'error',
+  'warn',
+  'info',
+  'debug',
+  'trace'
+]

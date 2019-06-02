@@ -13,5 +13,8 @@
     "@types/safe-json-stringify": "^1.0.1",
     "typescript": "^3.5.1",
     "ts-node": "^8.2.0"
+  },
+  "dependencies": {
+    "safe-json-stringify": "^1.2.0"
   }
 }
