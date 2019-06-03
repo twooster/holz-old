@@ -20,7 +20,7 @@ function buildFullErrorStack(err: { [k: string]: any }): string {
 
 export function serializeIfError(err: any): any {
     if (typeof err !== 'object' || err === null || !err.stack) {
-        return err   
+        return err
     }
     const ret: any = {
       stack: buildFullErrorStack(err)

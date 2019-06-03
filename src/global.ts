@@ -4,17 +4,18 @@ import { consoleLevels } from './levels'
 import { makeLogger } from './holz'
 
 const ttyLogger = (obj: any) => {
-  const clone = Object.assign({}, obj)
-  delete clone.level
-  delete clone.msg
+  const { level, msg, ...clone } = obj
 
-  const msg = obj.msg ? obj.msg + ' ' : ''
-  const rest = Object.keys(clone).length > 0 ? safeJson(clone) : ''
+  let rest = ''
+  for (const _ in clone) {
+    rest = safeJson(clone, null, 2)
+    break
+  }
 
-  console.log(`[${obj.level || 'unknown'}] ${msg}${rest}`)
+  process.stdout.write(`[${level || 'unknown'}] ${msg}${msg ? ' ' : ''}${rest}\n`)
 }
 
-const jsonLogger = (obj: any) => safeJson(obj)
+const jsonLogger = (obj: any) => process.stdout.write(safeJson(obj, null, 2) + '\n')
 
 export const logger = makeLogger({
   levels: consoleLevels,
