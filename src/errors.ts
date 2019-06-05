@@ -18,7 +18,7 @@ function buildFullErrorStack(err: { [k: string]: any }): string {
     return ret
 }
 
-export function serializeIfError(err: any): any {
+export function serializeErrors(err: any): any {
     if (typeof err !== 'object' || err === null || !err.stack) {
         return err
     }

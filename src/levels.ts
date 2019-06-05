@@ -25,4 +25,4 @@ export const consoleLevels = [
   'info',
   'debug',
   'trace'
-]
+] as const

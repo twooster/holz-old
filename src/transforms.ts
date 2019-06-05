@@ -2,19 +2,6 @@ import { format } from 'util'
 
 export type TransformFn = (obj: any) => (void | false | {})
 
-export function composeTransforms(...fns: Array<TransformFn>): TransformFn {
-  return (v: any): any => {
-    for (const fn of fns) {
-      const result = fn(v)
-      if (result === false) {
-        return false
-      } else if (result !== undefined) {
-        v = result
-      }
-    }
-  }
-}
-
 export function addContext(ctx: {} | (() => {})): TransformFn {
   if (typeof ctx === 'function') {
     return (v: {}): any => {
@@ -32,15 +19,26 @@ export const splat: TransformFn = function splat(msg: any) {
   }
 }
 
-export const tag: TransformFn = function tag(tag: string): TransformFn {
+export function append(key: string, value: any): TransformFn {
   return (msg: any) => {
-    if (typeof msg === 'object') {
-      if (msg.tags === undefined) {
-        msg.tags = []
-      } else if (!Array.isArray(msg.tags)) {
-        return
+    if (typeof msg === 'object' && msg !== null) {
+      if (msg[key] === undefined) {
+        msg.key = []
+      } else if (Array.isArray(msg[key])) {
+        msg[key].push(value)
       }
-      msg.tags.unshift(tag)
+    }
+  }
+}
+
+export function prepend(key: string, value: any): TransformFn {
+  return (msg: any) => {
+    if (typeof msg === 'object' && msg !== null) {
+      if (msg[key] === undefined) {
+        msg.key = []
+      } else if (Array.isArray(msg[key])) {
+        msg[key].unshift(value)
+      }
     }
   }
 }

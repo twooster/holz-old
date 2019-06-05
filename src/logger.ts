@@ -4,19 +4,15 @@ const LogLevel = Symbol.for('level')
 
 export type OutputFn = (obj: any) => any
 
-export interface LoggerOptions {
-  minLevel?: number | string,
+interface PartialLoggerOptions<L extends string> {
   transforms?: TransformFn[]
   outputs?: OutputFn[]
-  parent?: BaseLogger,
+  parent?: Logger<L>
+  minLevel?: number | L
 }
 
-interface LoggerOptionsWithLevels extends LoggerOptions {
-  levels: readonly string[]
-}
-
-interface BaseLoggerOptions extends LoggerOptionsWithLevels {
-  cls: typeof BaseLogger
+export interface LoggerOptions<L extends string> extends PartialLoggerOptions<L> {
+  levels: readonly L[]
 }
 
 interface BoxedMsg {
@@ -32,28 +28,20 @@ type LogMethods<Levels extends string> = {
 }
 
 export type Logger<L extends string> =
-  TypedLogger<L> &
+  BaseLogger<L> &
   LogMethods<L>
 
-interface TypedLogger<L extends string> extends BaseLogger {
+export type LoggerConstructor<L extends string> =
+  new(opts?: PartialLoggerOptions<L>) => Logger<L>
+
+export abstract class BaseLogger<L extends string> {
   minLevel: number | undefined
   levels: readonly L[]
-  parent: Logger<L>
-  subLogger(name: string): Logger<L>
-  withContext(ctx: ({} | (() => {}))): Logger<L>
-}
-
-export class BaseLogger {
-  subLoggers: Map<string, BaseLogger> | undefined
-  minLevel: number | undefined
-  levels: readonly string[]
   outputs: undefined | OutputFn[] = []
   transforms: undefined | TransformFn[] = []
-  parent: undefined | BaseLogger
-  cls: any
+  parent: undefined | Logger<L>
 
-  constructor(opts: BaseLoggerOptions) {
-    this.cls = opts.cls
+  constructor(opts: LoggerOptions<L>) {
     this.levels = opts.levels
 
     if (typeof opts.minLevel === 'string') {
@@ -87,11 +75,19 @@ export class BaseLogger {
     return this
   }
 
-  log(sevNum: number, msg: string, ...fmt: any[]): void
-  log(sevNum: number, obj: {}, msg?: string, ...fmt: any[]): void
-  log(sevNum: number, objOrMsg: string | {}, ...rest: any[]): void {
-    if (this.levels[sevNum] === undefined) {
-      throw new Error('Unknown log level: ' + sevNum)
+  log(sevNum: number | L, msg: string, ...fmt: any[]): void
+  log(sevNum: number | L, obj: {}, msg?: string, ...fmt: any[]): void
+  log(sevNum: number | L, objOrMsg: string | {}, ...rest: any[]): void {
+    if (typeof sevNum === 'number') {
+      if (this.levels[sevNum] === undefined) {
+        throw new Error('Unknown log level: ' + sevNum)
+      }
+    } else {
+      const num = this.levels.indexOf(sevNum)
+      if (num === -1) {
+        throw new Error('Unknown log level: ' + sevNum)
+      }
+      sevNum = num
     }
 
     if (this.minLevel !== undefined && sevNum > this.minLevel) {
@@ -161,59 +157,37 @@ export class BaseLogger {
     }
   }
 
-  subLogger(name?: string): BaseLogger {
-    let subLogger
-    if (name) {
-      if (!this.subLoggers) {
-        this.subLoggers = new Map()
-      } else {
-        subLogger = this.subLoggers.get(name)
-      }
-    }
-    if (!subLogger) {
-      subLogger = new this.cls({
-        cls: this.cls,
-        levels: this.levels,
-        parent: this,
-      })
-      if (name) {
-        this.subLoggers!.set(name, subLogger)
-      }
-    }
-    return subLogger
+  withContext(ctx: ({} | (() => {}))): Logger<L> {
+    return this.child().addTransforms(addContext(ctx))
   }
 
-  withContext(ctx: ({} | (() => {}))): BaseLogger {
-    return new this.cls({
-      cls: this.cls,
-      levels: this.levels,
-      parent: this,
-      transforms: [addContext(ctx)],
-    })
-  }
+  abstract child(): Logger<L>
 }
 
-export function makeLoggerClass<L extends string>(levels: { [k: number]: L } & readonly string[]):
-  { new(opts?: LoggerOptions & { minLevel?: number | L }): Logger<L> }
+export function makeLoggerClass<L extends string>(levels: readonly L[]): LoggerConstructor<L>
 {
-  const loggerClass: any = class CustomLogger extends BaseLogger {
-    constructor(loggerOptions?: LoggerOptions & { minLevel?: number | L }) {
-      super({ ...loggerOptions, levels, cls: loggerClass })
+  const loggerClass = class CustomLogger extends BaseLogger<L> {
+    constructor(loggerOptions?: PartialLoggerOptions<L>) {
+      super({ levels, ...loggerOptions })
     }
-  }
 
+    child(this: Logger<L>): Logger<L> {
+      return new loggerClass({
+        parent: this
+      })
+    }
+  } as LoggerConstructor<L>
+  
   for (let i = 0; i < levels.length; ++i) {
-    loggerClass.prototype[levels[i]] = function (...args: any[]): void {
-      this.log(i, ...args)
+    loggerClass.prototype[levels[i]] = function (): void {
+      this.log.call(i, ...arguments)
     }
   }
 
   return loggerClass
 }
 
-export function makeLogger<L extends string>(
-  opts: LoggerOptionsWithLevels & { levels: { [k: number]: L } & readonly string[], minLevel?: number | L }
-): Logger<L> {
+export function makeLogger<L extends string>(opts: LoggerOptions<L>): Logger<L> {
   const cls = makeLoggerClass(opts.levels)
   return new cls(opts)
 }
