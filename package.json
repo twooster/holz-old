@@ -1,19 +1,58 @@
 {
   "name": "holz",
-  "version": "0.0.1",
-  "description": "",
-  "main": "index.js",
+  "version": "0.1.0",
+  "description": "Holz: A Typescript Logging Library",
+  "main": "dist/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "prepare": "npm run build",
+    "prepublishOnly": "npm run test",
+    "preversion": "npm run build-docs && git add docs && git commit -m 'Update docs'",
+    "build": "rimraf 'dist' && tsc -b tsconfig-build.json",
+    "build-docs": "typedoc --out docs  --exclude '**/*.spec.*' --mode file ./src/index.ts",
+    "cover-ci": "jest --coverage --coverageReporters=text-lcov | coveralls",
+    "cover": "jest --coverage",
+    "lint": "eslint --ext ts src",
+    "test": "jest"
   },
   "author": "Tony Wooster <twooster@gmail.com>",
+  "homepage": "https://github.com/twooster/holz#readme",
+  "bugs": {
+    "url": "https://github.com/twooster/holz/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/twooster/holz.git"
+  },
   "license": "MIT",
   "devDependencies": {
-    "@types/node": "^12.0.2",
+    "@types/jest": "^24.0.13",
+    "@types/node": "^12.0.4",
     "@types/safe-json-stringify": "^1.0.1",
-    "typescript": "^3.5.1",
-    "ts-node": "^8.2.0"
+    "@typescript-eslint/eslint-plugin": "^1.9.0",
+    "@typescript-eslint/parser": "^1.9.0",
+    "coveralls": "^3.0.3",
+    "eslint": "^5.16.0",
+    "eslint-config-airbnb-base": "^13.1.0",
+    "eslint-plugin-import": "^2.17.3",
+    "eslint-plugin-jest": "^22.6.4",
+    "jest": "^24.8.0",
+    "rimraf": "^2.6.3",
+    "ts-jest": "^24.0.2",
+    "typedoc": "^0.14.2",
+    "typescript": "^3.5.1"
   },
+  "files": [
+    "dist",
+    "default-logger.js"
+  ],
+  "keywords": [
+    "logging",
+    "typescript",
+    "stdout",
+    "console",
+    "simple"
+  ],
+  "typings": "dist/index.d.ts",
   "dependencies": {
     "safe-json-stringify": "^1.2.0"
   }

@@ -4,11 +4,14 @@ const LogLevel = Symbol.for('level')
 
 export type OutputFn = (obj: any) => any
 
-interface PartialLoggerOptions<L extends string> {
+export interface SubloggerOptions<L extends string> {
   transforms?: TransformFn[]
   outputs?: OutputFn[]
-  parent?: Logger<L>
   minLevel?: number | L
+}
+
+export interface PartialLoggerOptions<L extends string> extends SubloggerOptions<L> {
+  parent?: Logger<L>
 }
 
 export interface LoggerOptions<L extends string> extends PartialLoggerOptions<L> {
@@ -177,7 +180,7 @@ export function makeLoggerClass<L extends string>(levels: readonly L[]): LoggerC
       })
     }
   } as LoggerConstructor<L>
-  
+
   for (let i = 0; i < levels.length; ++i) {
     loggerClass.prototype[levels[i]] = function (): void {
       this.log.call(i, ...arguments)

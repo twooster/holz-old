@@ -3,6 +3,9 @@
     "allowUnreachableCode": false,
     "allowUnusedLabels": false,
     "declaration": true,
+    "lib": [
+      "es2015"
+    ],
     "module": "commonjs",
     "moduleResolution": "node",
     "noImplicitAny": true,
@@ -13,7 +16,7 @@
     "pretty": true,
     "rootDir": "./src",
     "strict": true,
-    "target": "es6"
+    "target": "es2015"
   },
   "include": [
     "**/*.ts"

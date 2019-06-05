@@ -3,6 +3,8 @@
 A (fairly) simple logging library for logging primarily to stdout, written in
 TypeScript with adjustable, type-safe log levels.
 
+You're gonna need Typescript 3.4 for this to work.
+
 ## Motivation
 
 Lots of loggers just do too damn much and bring in like 40 packages. I don't
